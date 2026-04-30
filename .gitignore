@@ -1,0 +1,29 @@
+# Environment variables - never commit these
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+
+# Models - too large for GitHub
+models/
+*.gguf
+*.bin
+*.pt
+*.onnx
+
+# System
+.DS_Store
+*.log
+.idea/
+.vscode/settings.json
+
+# Sensitive configs
+configs/secrets.yaml
