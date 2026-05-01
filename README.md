@@ -1,29 +1,64 @@
-# RoboCop -- Wearable Personal AI Companion
+<div align="center">
 
-An always-on wearable AI system that sees, hears, and understands context to act as a personal mentor and companion throughout your day. Built on an NVIDIA Jetson Orin Nano Super, this device processes vision, audio, biometrics, and location data locally -- responding through bone conduction headphones as a private whisper in your ear.
+# RoboCop
 
-Built in public by Z, an artist and developer in Atlanta.
+### Wearable Personal AI Companion
+
+[![Built with NVIDIA Jetson](https://img.shields.io/badge/NVIDIA-Jetson_Orin_Nano_Super-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](https://developer.nvidia.com/embedded/jetson-orin-nano-super-developer-kit)
+[![Python](https://img.shields.io/badge/Python-3.10-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![CUDA](https://img.shields.io/badge/CUDA-12.6-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](https://developer.nvidia.com/cuda-toolkit)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.5.0-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+An always-on wearable AI system that sees, hears, and understands context — responding through bone conduction headphones as a private whisper in your ear.
+
+**Built in public by Z, an artist and developer in Atlanta.**
+
+[Getting Started](#setup-scripts) · [Architecture](#system-architecture) · [Roadmap](#roadmap) · [Concepts](#key-concepts-learned)
+
+</div>
+
+---
+
+> **Project Status:** First end-to-end audio loop working — mic captures speech, Whisper transcribes, LLM reasons, TTS speaks back through bone conduction headphones. All running locally on a Jetson Orin Nano Super.
 
 ---
 
 ## What It Does
 
+<table>
+<tr>
+<td width="50%">
+
+**Perception**
 - Sees what you see (computer vision via OAK-D Lite)
 - Hears what you hear (live audio transcription via Whisper)
-- Understands context continuously (emotion, environment, biometrics, location)
-- Responds through a private audio channel (bone conduction headphones)
-- Has persistent memory of your goals, patterns, and history
-- Acts as a buffer between you and the world -- emotionally, socially, and practically
+- Reads biometrics (heart rate, stress levels via Polar H10)
+- Knows where you are (GPS + geofencing)
+
+</td>
+<td width="50%">
+
+**Response**
+- Responds through a private audio channel (bone conduction)
+- Persistent memory of your goals, patterns, and history
+- Acts as a buffer — emotionally, socially, and practically
+- Maximum 1-3 sentences. Whisper in the ear, not a lecture.
+
+</td>
+</tr>
+</table>
 
 ### Use Cases
 
-- Suggesting how to respond in conversations
-- Detecting anxiety via biometrics and offering grounding techniques
-- Monitoring sobriety and calling an Uber when needed
-- Location-aware recommendations ("there's a jazz spot 2 blocks from you")
-- Real-time task assistance and emotional processing
-- Building routines and habits over time
-- Logging where you spend time and surfacing patterns
+| Scenario | How It Works |
+|---|---|
+| Social situations | Suggests how to respond in conversations based on context |
+| Anxiety detection | Detects elevated HR via biometrics, offers grounding techniques |
+| Sobriety monitoring | GPS at bar + late hour + elevated HR = check-in and Uber offer |
+| Location awareness | "There's a jazz spot 2 blocks from you that fits your taste" |
+| Pattern detection | "You've been at this bar 4 times this week" |
+| Daily assistance | Real-time task help, emotional processing, routine building |
 
 ---
 
@@ -44,7 +79,8 @@ Built in public by Z, an artist and developer in Atlanta.
 
 ---
 
-## Software Stack -- What's Installed and Why
+<details>
+<summary><h2>Software Stack -- What's Installed and Why</h2></summary>
 
 ### Operating System
 
@@ -147,6 +183,8 @@ nmcli device wifi list
 sudo nmcli device wifi connect "NetworkName" password "thepassword"
 ```
 
+</details>
+
 ---
 
 ## System Architecture
@@ -207,7 +245,8 @@ Layer 6: Memory System
 
 ---
 
-## Storage Architecture
+<details>
+<summary><h2>Storage Architecture</h2></summary>
 
 The Jetson uses two storage devices:
 
@@ -223,9 +262,12 @@ The Jetson uses two storage devices:
 
 **Boot flow:** Hardware firmware -> bootloader stages on MicroSD -> reads `extlinux.conf` which points `root=` to the NVMe SSD UUID -> Linux kernel loads -> root filesystem on NVMe takes over.
 
+</details>
+
 ---
 
-## Project Structure
+<details>
+<summary><h2>Project Structure</h2></summary>
 
 ```
 RoboCop/
@@ -273,6 +315,8 @@ RoboCop/
   README.md
 ```
 
+</details>
+
 ---
 
 ## Setup Scripts
@@ -289,7 +333,8 @@ All setup scripts are in `hardware/jetson/`. They document the exact commands us
 
 ---
 
-## Key Concepts Learned
+<details>
+<summary><h2>Key Concepts Learned</h2></summary>
 
 ### CUDA and GPU Computing
 A CPU has a few powerful cores (6 on the Jetson). A GPU has thousands of tiny cores (1024 on the Orin) that work in parallel. CUDA lets programs run math on those GPU cores. Neural network inference is massive matrix multiplication -- spreading it across 1024 cores makes it dramatically faster than running on 6 CPU cores.
@@ -312,9 +357,12 @@ Linux uses systemd to manage background services (daemons). `systemctl enable` m
 ### PulseAudio and Bluetooth Audio
 PulseAudio is the audio server that routes sound between applications and hardware. For Bluetooth audio, it needs the `pulseaudio-module-bluetooth` package to bridge BlueZ (the Bluetooth stack) with audio output. Bluetooth audio uses profiles: A2DP for high-quality stereo playback, HFP for phone-call quality mono.
 
+</details>
+
 ---
 
-## Useful Commands
+<details>
+<summary><h2>Useful Commands</h2></summary>
 
 ### System Monitoring
 ```bash
@@ -395,9 +443,13 @@ nmcli connection show
 ssh z@z-desktop.local
 ```
 
+</details>
+
 ---
 
 ## Roadmap
+
+### Phase 0: Foundation (Complete)
 
 - [x] Jetson initial setup (CUDA, power mode, SSH)
 - [x] GitHub repository (public)
@@ -409,23 +461,52 @@ ssh z@z-desktop.local
 - [x] ReSpeaker microphone working
 - [x] Shokz Bluetooth audio output working
 - [x] First end-to-end audio loop (mic -> transcription -> TTS -> headphones)
+
+### Phase 1: Agent Loop (Next)
+
 - [ ] Install Piper TTS (natural-sounding voice)
 - [ ] Fix Bluetooth A2DP for better audio quality
 - [ ] Build Phase 1 agent loop (speak -> Whisper -> Ollama -> Piper -> Shokz)
 - [ ] Scaffold Python project structure
-- [ ] Set up DepthAI (when OAK-D Lite arrives Jun 3-12)
+
+### Phase 2: Perception
+
+- [ ] Set up DepthAI + OAK-D Lite (arriving Jun 3-12)
+- [ ] YOLOv8 object detection
+- [ ] DeepFace emotion recognition
 - [ ] Install and configure GPS module
-- [ ] Build context engine
+- [ ] Polar H10 biometric integration
+
+### Phase 3: Intelligence
+
+- [ ] Build context engine (30-second rolling state)
 - [ ] Build rules engine (safety gates)
 - [ ] Set up ChromaDB memory system
+- [ ] Claude API integration for deep reasoning
+- [ ] Compound trigger system (GPS + HR + time + context)
+
+### Phase 4: Polish
+
 - [ ] Build wearable enclosure
-- [ ] Remote dashboard (Next.js)
+- [ ] Remote dashboard (Next.js + Waveshare display)
+- [ ] Location-aware recommendations (Google Places / Foursquare)
+- [ ] Uber API integration
 
 ---
 
 ## Contributing
 
 This project is built in public. Follow along, open issues, or fork it. If you're building something similar, let's connect.
+
+---
+
+<div align="center">
+
+**Built with patience, curiosity, and Claude Code.**
+
+[![GitHub](https://img.shields.io/badge/Follow_the_build-GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/JustcallmeAman/RoboCop)
+
+</div>
 
 ## License
 
