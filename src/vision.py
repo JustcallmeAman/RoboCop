@@ -9,7 +9,7 @@ import depthai as dai
 import time
 
 from config import (
-    DETECTION_MODEL, DETECTION_PLATFORM, DETECTION_CONFIDENCE,
+    DETECTION_ARCHIVE_PATH, DETECTION_CONFIDENCE,
     CAMERA_PREVIEW_SIZE, DETECTION_LABELS,
 )
 
@@ -30,9 +30,7 @@ def init():
     cam_out = cam.requestOutput(CAMERA_PREVIEW_SIZE, type=dai.ImgFrame.Type.BGR888p)
 
     nn = _pipeline.create(dai.node.DetectionNetwork)
-    nn.setFromModelZoo(dai.NNModelDescription(
-        model=DETECTION_MODEL, platform=DETECTION_PLATFORM
-    ))
+    nn.setNNArchive(dai.NNArchive(DETECTION_ARCHIVE_PATH))
     nn.setConfidenceThreshold(DETECTION_CONFIDENCE)
 
     cam_out.link(nn.input)

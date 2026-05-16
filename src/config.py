@@ -100,6 +100,7 @@ AUDIO_SINK = 'bluez_output.A0_0C_E2_D5_CE_ED.headset-head-unit'
 
 DETECTION_MODEL = 'mobilenet-ssd'
 DETECTION_PLATFORM = 'RVC2'
+DETECTION_ARCHIVE_PATH = '/opt/robocop/models/mobilenet-ssd-300x300.rvc2.tar.xz'
 DETECTION_CONFIDENCE = 0.5
 CAMERA_PREVIEW_SIZE = (300, 300)
 CAMERA_FPS = 10
