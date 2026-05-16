@@ -93,3 +93,19 @@ TTS_PADDING_SECONDS = 0.4
 # ============================================================
 
 AUDIO_SINK = 'bluez_output.A0_0C_E2_D5_CE_ED.headset-head-unit'
+
+# ============================================================
+# Vision (OAK-D Lite)
+# ============================================================
+
+DETECTION_MODEL = 'mobilenet-ssd'
+DETECTION_PLATFORM = 'RVC2'
+DETECTION_CONFIDENCE = 0.5
+CAMERA_PREVIEW_SIZE = (300, 300)
+CAMERA_FPS = 10
+
+DETECTION_LABELS = [
+    'background', 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus',
+    'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse',
+    'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor'
+]
