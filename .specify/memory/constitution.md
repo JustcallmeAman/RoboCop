@@ -1,27 +1,43 @@
 <!--
 Sync Impact Report
 ===================
-Version change: 0.0.0 → 1.0.0
-MAJOR bump rationale: Initial constitution ratification — all principles new.
+Version change: 1.0.0 → 2.0.0
+MAJOR bump rationale: All principles redefined. Expanded from 5 to 6
+principles with materially different scope, added concrete latency
+targets, type hint requirements, and documentation standards.
 
-Modified principles: N/A (initial version)
+Modified principles:
+  - "I. Resource Efficiency" → "I. Real-Time Performance"
+    (narrowed from general memory budgets to concrete latency/FPS
+    targets; memory budgets moved to Principle II)
+  - "II. On-Device Processing" → "II. Hardware Constraint Awareness"
+    (expanded to include thermal, power, and edge-first processing;
+    secrets policy moved to Governance)
+  - "III. Safety Gates" → "IV. Safety & Graceful Degradation"
+    (broadened from rules-engine-only to full fault tolerance across
+    all modules)
+  - "IV. Modular Architecture" → "III. Modular Software Architecture"
+    (added fault isolation and sensor pipeline independence)
+  - "V. Simplicity" → removed as standalone principle (YAGNI guidance
+    absorbed into Code Quality Standards)
 
 Added sections:
-  - Core Principles (5): Resource Efficiency, On-Device Processing,
-    Safety Gates, Modular Architecture, Simplicity
-  - Hardware Constraints
-  - Development Workflow & Quality Gates
-  - Governance
+  - Principle V: Code Quality Standards (type hints, abstract sensor
+    APIs, linting)
+  - Principle VI: Documentation Standards (wiring diagrams, calibration
+    procedures)
 
-Removed sections: N/A
+Removed sections:
+  - "Hardware Constraints" table (absorbed into Principle II)
+  - "Python Standards" subsection (absorbed into Principle V)
 
 Templates requiring updates:
-  - .specify/templates/plan-template.md — ✅ compatible (Constitution Check
-    section is generic, will be populated per-plan)
-  - .specify/templates/spec-template.md — ✅ compatible (no constitution-
-    specific references)
-  - .specify/templates/tasks-template.md — ✅ compatible (task phases are
-    generic)
+  - .specify/templates/plan-template.md — ✅ compatible (Constitution
+    Check section is generic, populated per-plan)
+  - .specify/templates/spec-template.md — ✅ compatible (no
+    constitution-specific references)
+  - .specify/templates/tasks-template.md — ✅ compatible (task phases
+    are generic)
 
 Follow-up TODOs: None
 -->
@@ -30,108 +46,178 @@ Follow-up TODOs: None
 
 ## Core Principles
 
-### I. Resource Efficiency
+### I. Real-Time Performance
 
-The Jetson Orin Nano Super has 8GB of unified memory shared between
-CPU and GPU. This is the hardest constraint in the system.
+The system is a wearable companion that responds in real time. Latency
+and throughput targets are non-negotiable for a usable experience.
 
-- Every module MUST document its peak memory footprint before merge.
-- GPU memory is reserved for inference workloads (LLM, vision models).
-  CPU-bound tasks (audio capture, TTS playback, HTTP serving) MUST NOT
-  allocate GPU memory.
-- New model additions MUST include a memory budget showing total system
-  usage stays below 7GB (1GB reserved for OS and headroom).
-- When two approaches exist, prefer the one that uses less memory, even
-  if the alternative is marginally faster. Latency is secondary to
-  fitting in memory.
-- Quantized models (int8, Q4_K) are the default. Full-precision weights
-  require explicit justification.
+- End-to-end voice loop (mic capture → STT → LLM → TTS → speaker)
+  MUST complete within 5 seconds p95.
+- Speech-to-text (faster-whisper) MUST return transcription within
+  1.5 seconds of utterance end.
+- LLM inference (Ollama/qwen2.5:3b) MUST produce first token within
+  800ms and complete within 3 seconds for a typical 1-3 sentence
+  response.
+- Vision pipeline (OAK-D Lite object detection) MUST sustain a
+  minimum of 15 FPS for scene context. Dropping below 10 FPS for
+  more than 2 seconds MUST trigger a warning log.
+- TTS synthesis (Piper) MUST produce audio within 500ms of receiving
+  text.
+- All latency targets MUST be measured on the Jetson under load
+  (LLM + vision + audio running simultaneously), not in isolation.
+- If a latency target cannot be met, the module MUST log a
+  `PERF_DEGRADED` event with measured vs. target values.
 
-### II. On-Device Processing
+### II. Hardware Constraint Awareness
 
-All core functionality MUST run locally on the Jetson without network
-access. The system operates as a fully offline companion.
+The Jetson Orin Nano Super has 8GB unified memory, 6 ARM cores,
+1024 CUDA cores, and passive+fan cooling. Every decision respects
+these physical limits.
 
-- Speech recognition, LLM inference, TTS, and vision MUST function
-  without internet connectivity.
-- Cloud services (Claude API, weather APIs, Uber API) are optional
-  enhancements, never dependencies for core operation.
-- No telemetry, analytics, or data transmission unless the user
-  explicitly initiates it.
-- The public GitHub repo MUST NOT contain secrets, API keys, tokens,
-  or credentials. All secrets go in `.env` files excluded by
-  `.gitignore`.
+**Memory Budget**:
+- Total system usage MUST stay below 7GB (1GB reserved for OS).
+- GPU memory is reserved for inference: LLM (~1.9GB) + vision
+  (~0.5GB) + headroom. CPU-bound tasks (audio capture, TTS playback,
+  HTTP serving) MUST NOT allocate GPU memory.
+- New model additions MUST include a memory budget showing the
+  allocation fits. Quantized models (int8, Q4_K) are the default;
+  full-precision weights require explicit justification.
 
-### III. Safety Gates
+**Thermal Management**:
+- Code MUST NOT disable or override the fan controller.
+- If `tegrastats` reports SOC temperature above 80C, the system
+  MUST reduce inference frequency (skip vision frames, increase
+  polling intervals) until temperature drops below 75C.
+- Long-running benchmarks or stress tests MUST monitor temperature
+  and abort if sustained above 85C.
 
-Life-safety decisions use deterministic rules, never LLM inference.
-Layer 1 (Rules Engine) overrides all other layers.
+**Power Budget**:
+- The system runs on a 140W charger in MAXN_SUPER power mode.
+- Battery-powered operation is not supported yet. When it is added,
+  a power-profile system MUST allow trading latency for lower power
+  draw.
 
-- Biomarker thresholds (heart rate spikes, sustained elevated HR)
-  trigger deterministic responses — no LLM involved.
-- Intoxication detection (GPS + time + HR compound triggers) uses
-  hard-coded logic with fixed thresholds.
-- The rules engine MUST NOT be bypassed, disabled, or overridden by
-  any other system component.
-- Emergency responses (call for help, Uber suggestion) fire
-  immediately without waiting for LLM reasoning.
-
-### IV. Modular Architecture
-
-Each subsystem is a self-contained Python module with a clear
-interface. Modules MUST be independently testable.
-
-- The canonical modules are: `config`, `llm`, `stt`, `tts`, `vision`,
-  `memory`, `reasoning`, `agent_loop`.
-- A module MUST NOT import from another module's internals. Use the
-  public interface defined at the module level.
-- `agent_loop.py` is the only orchestrator. It composes modules but
-  contains no domain logic itself.
-- New modules follow the same pattern: single `.py` file in `src/`,
-  init function, clean shutdown, documented public interface.
-- If a module fails to initialize (e.g., camera not connected), the
-  system MUST degrade gracefully — log the failure and continue
-  without that capability.
-
-### V. Simplicity
-
-Start with the simplest implementation that works. Optimize only when
-measured. YAGNI applies to everything.
-
-- No abstractions until the third concrete use case. Three similar
-  lines of code are better than a premature helper.
-- No config files for values that change less than once a month —
-  use constants.
-- Prefer a single Python file per module over package directories
-  until the file exceeds ~300 lines.
-- Comments explain WHY, not WHAT. Well-named functions and variables
-  are the documentation.
-- Maximum response length is 1-3 sentences. The AI whispers, it does
-  not lecture.
-
-## Hardware Constraints
-
-These constraints are derived from the physical hardware and MUST be
-respected by all code running on the Jetson.
-
-| Resource | Limit | Notes |
-|---|---|---|
-| Total RAM | 8GB unified (CPU + GPU) | OS baseline ~800MB headless |
-| GPU memory budget | ~3GB for models | LLM (~1.9GB) + vision (~0.5GB) + headroom |
-| CPU cores | 6x ARM Cortex-A78AE | Audio capture and TTS run here |
-| Storage (NVMe) | 238GB, 1691 MB/s read | Primary for all workloads |
-| Storage (MicroSD) | 256GB, 80 MB/s read | Boot chain only |
-| MyriadX (OAK-D Lite) | 4 TOPS | On-camera inference, zero Jetson cost |
-| Thermal | Passive + fan | Monitor via `tegrastats`, throttle at 80C |
-
-- Audio capture (ReSpeaker XVF3800) uses ALSA direct, not PulseAudio,
-  to minimize latency and CPU overhead.
-- Bluetooth audio (Shokz) routes through PipeWire in HFP mode (16kHz
-  mono). A2DP is preferred when stable.
-- OAK-D Lite runs MobileNet SSD on its own MyriadX chip. Vision
-  inference MUST stay on-camera unless a model requires Jetson GPU.
+**Edge-First Processing**:
+- All core functions (STT, LLM, TTS, vision, rules engine) MUST
+  operate fully offline with no network dependency.
+- Cloud services (Claude API, weather, Uber, Google Places) are
+  optional enhancements. The system MUST function identically when
+  disconnected from the internet.
+- OAK-D Lite runs inference on its MyriadX chip (4 TOPS). Vision
+  models MUST stay on-camera unless they specifically require Jetson
+  GPU.
 - New peripherals MUST work over USB or Bluetooth. No custom PCBs or
   kernel modules without explicit justification.
+
+### III. Modular Software Architecture
+
+Each sensor pipeline is a self-contained Python module with a defined
+interface. Modules MUST be independently testable and fault-tolerant.
+
+- The canonical modules are: `config`, `llm`, `stt`, `tts`, `vision`,
+  `memory`, `reasoning`, `wakeword`, `agent_loop`.
+- Each module MUST expose: an `init()` function, a `shutdown()`
+  function, and a clearly defined public API. Internal helpers MUST
+  be prefixed with `_`.
+- A module MUST NOT import from another module's internals. Cross-
+  module communication goes through the public interface only.
+- `agent_loop.py` is the sole orchestrator. It composes modules but
+  contains no domain logic — no STT processing, no LLM prompt
+  construction, no audio encoding.
+- Each sensor pipeline (audio, vision, biometrics) MUST be testable
+  in isolation with mock inputs. A vision module test MUST NOT
+  require a connected microphone; an STT test MUST NOT require a
+  connected camera.
+- New modules follow the pattern: single `.py` file in `src/`,
+  `init()`/`shutdown()` pair, type-hinted public interface. Grow to
+  a package directory only when the file exceeds ~300 lines.
+
+### IV. Safety & Graceful Degradation
+
+The system MUST remain operational when any single module fails. No
+single peripheral failure may crash the system or produce unsafe
+behavior.
+
+**Module Fault Tolerance**:
+- If a module fails to initialize (camera disconnected, mic
+  unplugged, Bluetooth dropped), the system MUST log the failure
+  and continue without that capability.
+- The agent loop MUST track which modules are active and adjust its
+  behavior accordingly (e.g., skip vision context when camera is
+  unavailable, fall back to text-only when TTS fails).
+- A module that crashes at runtime MUST be caught by the orchestrator.
+  The crash MUST be logged with a full traceback. The system MUST NOT
+  exit.
+
+**Life-Safety Rules Engine**:
+- Life-safety decisions (biomarker thresholds, intoxication detection,
+  emergency triggers) use deterministic rules in Layer 1, never LLM
+  inference.
+- The rules engine MUST NOT be bypassed, disabled, or overridden by
+  any other component.
+- Emergency responses (Uber suggestion, grounding techniques, call for
+  help) fire immediately without waiting for LLM reasoning.
+- Compound triggers (GPS + time + HR) use hard-coded logic with fixed,
+  documented thresholds.
+
+**Secrets & Public Repo Safety**:
+- The GitHub repo is public. It MUST NOT contain API keys, tokens,
+  passwords, or credentials at any point in git history.
+- All secrets go in `.env` files excluded by `.gitignore`.
+- No telemetry, analytics, or data transmission unless the user
+  explicitly initiates it.
+
+### V. Code Quality Standards
+
+Python is the primary language. Code MUST be readable, typed, and
+structured around clean sensor abstractions.
+
+- **Python 3.10** (JetPack 6.2.1 default). All code MUST run on
+  this version.
+- **Type hints are required** on all public function signatures
+  (parameters and return types). Private helpers SHOULD have type
+  hints but are not blocked on them.
+- Every sensor interface (microphone, camera, Bluetooth audio,
+  biometrics, GPS) MUST be abstracted behind a clean API class or
+  module. Callers interact with the abstraction, never with raw
+  hardware handles (ALSA device strings, DepthAI pipeline objects,
+  BlueZ D-Bus calls).
+- `requirements.txt` for pip dependencies. Pin exact versions for
+  ARM64 reproducibility.
+- No premature abstractions. Three similar lines are better than a
+  helper nobody reuses. Extract only on the third concrete use case.
+- Comments explain WHY, not WHAT. Well-named functions are the
+  documentation for behavior.
+- Maximum AI response length: 1-3 sentences. The companion whispers,
+  it does not lecture.
+
+### VI. Documentation Standards
+
+Every module that interfaces with hardware MUST include documentation
+linking to physical setup and calibration.
+
+- Each hardware-facing module MUST reference a wiring diagram or
+  connection guide. This can be:
+  - A section in the module's docstring pointing to `hardware/jetson/`
+    setup scripts.
+  - A `# Hardware: see hardware/jetson/<script>.sh` comment at the
+    top of the file.
+  - A dedicated `docs/hardware/<module>.md` file for complex setups.
+- Each sensor module MUST document its calibration procedure:
+  - **Microphone (ReSpeaker)**: How to verify capture levels, test
+    beamforming, check for silence (USB re-init).
+  - **Camera (OAK-D Lite)**: How to verify detection model is loaded,
+    confirm FPS, check stereo alignment.
+  - **Audio output (Shokz)**: How to verify Bluetooth connection,
+    test playback, confirm PipeWire routing.
+  - **Biometrics (Polar H10)**: How to pair, verify HR stream, check
+    signal quality. *(Future — document when integrated.)*
+  - **GPS**: How to get a fix, verify coordinates, test geofencing.
+    *(Future — document when integrated.)*
+- Setup scripts in `hardware/jetson/` MUST explain what each command
+  does and why, not just list commands.
+- README.md remains the high-level overview. Module-specific hardware
+  details live alongside the code or in `docs/hardware/`.
 
 ## Development Workflow & Quality Gates
 
@@ -152,22 +238,21 @@ Before merging any feature:
 
 - [ ] **Memory check**: Run `tegrastats` during operation and confirm
       total usage stays under 7GB.
+- [ ] **Thermal check**: Run for 5+ minutes under load; SOC temp MUST
+      stay below 80C sustained.
 - [ ] **Graceful degradation**: Disconnect each peripheral one at a
       time and verify the system continues without crashing.
-- [ ] **Response latency**: End-to-end loop (mic → transcribe → LLM →
-      TTS → speaker) completes within 5 seconds.
+- [ ] **Response latency**: End-to-end voice loop completes within
+      5 seconds p95.
+- [ ] **Vision FPS**: Object detection sustains 15+ FPS under load.
 - [ ] **Cold start**: System initializes all modules and is ready to
       accept speech within 30 seconds of launch.
+- [ ] **Type check**: All public functions have type hints on
+      parameters and return values.
+- [ ] **Hardware docs**: New sensor modules reference wiring/setup
+      guide and document calibration procedure.
 - [ ] **No secrets**: `git diff` shows no API keys, tokens, passwords,
       or credentials.
-
-### Python Standards
-
-- Python 3.10 (Jetson JetPack 6.2.1 default).
-- No type checkers or linters enforced yet — code MUST be readable
-  and follow the module pattern in Principle IV.
-- `requirements.txt` for pip dependencies. Pin versions for
-  reproducibility on ARM64.
 
 ## Governance
 
@@ -188,4 +273,4 @@ agreements when conflicts arise.
   the principle wins unless a Complexity Tracking entry in the plan
   explicitly justifies the exception.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-16 | **Last Amended**: 2026-05-16
+**Version**: 2.0.0 | **Ratified**: 2026-05-16 | **Last Amended**: 2026-05-16
